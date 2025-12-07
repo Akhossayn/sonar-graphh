@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Copy of Sonar Core Dashboard",
+  "description": "A dashboard to visualize blockchain data fetched from a Sonar Core Fast API, featuring key metrics and historical charts.",
+  "requestFramePermissions": []
+}
