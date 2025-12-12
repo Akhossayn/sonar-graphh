@@ -25,18 +25,9 @@ export interface VortexState {
   history: ChartPoint[];
 }
 
-// Added missing ChartProps interface
 export interface ChartProps {
   data: any[];
   dataKey: string;
   title: string;
   color: string;
-}
-
-// Added missing BlockData interface
-export interface BlockData {
-  blockNumber: number;
-  timestamp: string;
-  transactions: number;
-  gasUsed: number;
 }

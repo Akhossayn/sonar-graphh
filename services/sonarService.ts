@@ -9,13 +9,16 @@ let lastFunding = 0.01;
 let lastTimestamp = Date.now();
 let priceHistory: ChartPoint[] = [];
 
-// Initialize history with some dummy data
+// Initialize history with some dummy data to populate chart on load
 const now = new Date();
-for (let i = 20; i >= 0; i--) {
+for (let i = 29; i >= 0; i--) {
   const t = new Date(now.getTime() - i * 1000);
+  const timeString = t.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' });
+  // Random walk initialization
+  const factor = (Math.random() - 0.5) * 50; 
   priceHistory.push({
-    date: t.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }),
-    value: parseFloat((lastPrice + (Math.random() - 0.5) * 100).toFixed(2))
+    date: timeString,
+    value: parseFloat((lastPrice + factor).toFixed(2))
   });
 }
 
@@ -49,21 +52,39 @@ export const fetchVortexData = async (): Promise<VortexState> => {
 
       // 3. Calculating CVD Velocity (Change in Volume / Time)
       const currentCVD = lastCVD + takerDelta;
-      const velocity = ((currentCVD - lastCVD) / (timeDelta || 1)).toFixed(1);
+      // AUDIT FIX: Original code calculated per second but labeled per minute.
+      // Adjusted to calculate contracts per minute.
+      const velocityPerSecond = (currentCVD - lastCVD) / (timeDelta || 1);
+      const velocity = (velocityPerSecond * 60).toFixed(1);
       lastCVD = currentCVD;
 
       // 4. Whale Absorption Calculation
-      // Randomly spike absorption when price moves significantly
-      const whaleAbsorption = Math.abs(priceChange) > 10 
-        ? (50 + Math.random() * 40).toFixed(2) 
-        : (Math.random() * 30).toFixed(2);
+      // AUDIT FIX: Previous logic (PriceChange > 10 = High Absorption) was inverted.
+      // Real Absorption = High Volume / Low Price Change.
+      const volumeProxy = Math.abs(takerDelta) + (Math.random() * 50);
+      const priceDisplacement = Math.abs(priceChange) + 0.1; // Prevent div/0
+      // High Ratio = High Absorption
+      const absorptionRatio = (volumeProxy / priceDisplacement);
+      const whaleAbsorption = Math.min(100, (absorptionRatio * 2)).toFixed(2);
 
       // 5. Funding Rate Acceleration
       const currentFunding = lastFunding + (Math.random() - 0.5) * 0.0001;
       const fundingAccel = ((currentFunding - lastFunding) * 10000).toFixed(4);
       lastFunding = currentFunding;
 
-      // 6. Generate Metrics List
+      // 6. VCS & Ejection (Derived from Metrics, NOT Random)
+      const vcsRaw = (takerDelta * 0.5) + (parseFloat(velocity) * 0.1) + (currentFunding * 1000);
+      const vcsScore = parseFloat((Math.abs(vcsRaw) / 10).toFixed(1));
+      
+      let vcsStatus = "NEUTRAL FLOW";
+      if (vcsRaw > 50) vcsStatus = "BULLISH CONFLUENCE";
+      if (vcsRaw < -50) vcsStatus = "BEARISH DIVERGENCE";
+
+      const ejectionRaw = (Math.abs(priceChange) * Math.abs(parseFloat(velocity))) / 100;
+      const ejectionPower = Math.min(100, ejectionRaw);
+      const ejectionStatus = ejectionPower > 80 ? "CRITICAL / BREAKOUT" : ejectionPower > 40 ? "BUILDING PRESSURE" : "STABLE";
+
+      // 7. Generate Metrics List
       const metrics: VortexMetric[] = [
         {
           id: 1,
@@ -105,7 +126,7 @@ export const fetchVortexData = async (): Promise<VortexState> => {
           id: 6,
           label: '6. CVD VELOCITY (Contracts/min)',
           value: `${velocity}/m`,
-          statusLabel: Math.abs(parseFloat(velocity)) > 10 ? 'TURBULENT' : 'STABLE',
+          statusLabel: Math.abs(parseFloat(velocity)) > 600 ? 'TURBULENT' : 'STABLE', // Threshold adj for /min
           statusColor: 'gray',
         },
         {
@@ -156,11 +177,11 @@ export const fetchVortexData = async (): Promise<VortexState> => {
 
       resolve({
         price: parseFloat(currentPrice.toFixed(2)),
-        lagMs: Math.floor(Math.random() * 3000), // Simulate occasional lag spikes like screenshot
-        vcsScore: parseFloat((Math.random() * 2).toFixed(1)),
-        vcsStatus: 'AWAITING FLOW...',
-        ejectionPower: parseFloat((Math.random() * 10).toFixed(2)),
-        ejectionStatus: 'EXHAUSTED/FADING',
+        lagMs: Math.floor(Math.random() * 3000), 
+        vcsScore: vcsScore,
+        vcsStatus: vcsStatus,
+        ejectionPower: parseFloat(ejectionPower.toFixed(2)),
+        ejectionStatus: ejectionStatus,
         metrics,
         history: [...priceHistory]
       });
